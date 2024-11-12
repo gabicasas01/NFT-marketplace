@@ -2,25 +2,20 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react";
-import {
-  getAssetsByOwner,
-  fetchNFTDetails,
-  extractGroupAddress,
-} from "@/utils/getAssets";
+import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { FaExternalLinkAlt } from "react-icons/fa";
 import {
   useAnchorWallet,
   useConnection,
-  useWallet,
 } from "@solana/wallet-adapter-react";
 import Card from "@/components/Card";
 import Skeleton from "@/components/Skeleton";
 import { getNFTDetail, getNFTList } from "@/utils/nftMarket";
 import { AnchorProvider, Wallet } from "@coral-xyz/anchor";
 import { PublicKey } from "@solana/web3.js";
+import NFTFilter, { NFTFilters } from "./components/NFTFilters";
 
 export interface NFTDetail {
   name: string;
@@ -31,17 +26,19 @@ export interface NFTDetail {
   seller: string;
   price: string;
   listing: string;
+  collection?: string;
 }
 
 const trimAddress = (address: string) =>
   `${address.slice(0, 4)}...${address.slice(-4)}`;
 
 const Closet: React.FC = () => {
-  const { publicKey } = useWallet();
   const [walletAddress, setWalletAddress] = useState<string>("");
   const [assets, setAssets] = useState<NFTDetail[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [filteredAssets, setFilteredAssets] = useState<NFTDetail[]>([]);
+  const [filters, setFilters] = useState<NFTFilters>({});
   const wallet = useAnchorWallet();
   const { connection } = useConnection();
 
@@ -59,10 +56,6 @@ const Closet: React.FC = () => {
     fetchNFTs();
   }, []);
 
-  // useEffect(() => {
-  //   fetchAssets();
-  // }, [publicKey]);
-
   useEffect(() => {
     fetchNFTs();
   }, [wallet]);
@@ -75,15 +68,33 @@ const Closet: React.FC = () => {
     sessionStorage.setItem("assets", JSON.stringify(assets));
   }, [assets]);
 
-  const fetchNFTs = async () => {
+  const applyFilters = useCallback(
+    (assets: NFTDetail[], filters: NFTFilters) => {
+      const filtered = assets.filter((asset) => {
+        const matchesCollection =
+          !filters.collection ||
+          asset.name.toLowerCase().includes(filters.collection.toLowerCase());
+
+          const matchesPrice =
+          (!filters.minPrice || parseFloat(asset.price) / 1000000 >= filters.minPrice) &&
+          (!filters.maxPrice || parseFloat(asset.price) / 1000000 <= filters.maxPrice);
+
+        return (
+          matchesCollection && matchesPrice
+        );
+      });
+
+      setFilteredAssets(filtered);
+    },
+    []
+  );
+
+  const fetchNFTs = useCallback(async () => {
     setIsLoading(true);
     const provider = new AnchorProvider(connection, wallet as Wallet, {});
 
     try {
       const listings = await getNFTList(provider, connection);
-      // const mint = new PublicKey(listings[0].mint);
-      // const detail = await getNFTDetail(mint, connection);
-      console.log(listings);
       const promises = listings
         .filter((list) => list.isActive)
         .map((list) => {
@@ -97,22 +108,27 @@ const Closet: React.FC = () => {
           );
         });
       const detailedListings = await Promise.all(promises);
-      console.log(detailedListings);
-      //return detailedListings;
 
       setAssets(detailedListings);
-    } catch (errr) {
-      console.log(errr);
+      applyFilters(detailedListings, filters);
+    } catch (err) {
+      console.log(err);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [connection, wallet, filters, applyFilters]);
+
+  useEffect(() => {
+    applyFilters(assets, filters);
+  }, [assets, filters, applyFilters]);
 
   return (
     <div className="p-4 pt-20 bg-white dark:bg-black min-h-screen">
       <h1 className="text-3xl font-bold mb-4 text-center text-black dark:text-white">
         NFTs on sale
       </h1>
+
+      <NFTFilter onFilterChange={(newFilters) => setFilters(newFilters)} />
 
       {error && <div className="text-red-500 text-center mb-4">{error}</div>}
 
@@ -126,9 +142,9 @@ const Closet: React.FC = () => {
             </Card>
           ))}
         </div>
-      ) : assets.length > 0 ? (
+      ) : filteredAssets.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {assets.map((asset: NFTDetail) => (
+          {filteredAssets.map((asset: NFTDetail) => (
             <div
               key={asset.mint}
               className="relative p-4 border rounded shadow hover:shadow-lg transition-transform transform hover:scale-105 cursor-pointer bg-white dark:bg-black group"
