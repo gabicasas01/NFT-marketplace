@@ -8,6 +8,8 @@ import Image from "next/image";
 import { Sun, Moon } from "lucide-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import dynamic from "next/dynamic";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 
 // Dynamically load WalletMultiButton to ensure it is only rendered on the client side
 const DynamicWalletMultiButton = dynamic(
@@ -21,6 +23,11 @@ const DynamicWalletMultiButton = dynamic(
 const NavBar = () => {
   const { theme, toggleTheme } = useTheme();
   const [username, setUsername] = useState<string | null>(null);
+  const [balance, setBalance] = useState<number | null>(null);
+
+  const { connected, publicKey } = useWallet();
+  const { connection } = useConnection();
+
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -39,6 +46,17 @@ const NavBar = () => {
         });
     }
   }, []);
+
+    useEffect(() => {
+      if (connected && publicKey && connection) {
+        connection.getBalance(publicKey).then((lamports) => {
+          setBalance(lamports / LAMPORTS_PER_SOL);
+        });
+      } else {
+        setBalance(null);
+      }
+    }, [connected, publicKey, connection]);
+  
 
   const handleToggleTheme = () => {
     toggleTheme(theme === "light" ? "dark" : "light");
@@ -84,6 +102,12 @@ const NavBar = () => {
             )}
           </button>
           <DynamicWalletMultiButton />
+
+          {connected && (
+            <span className="text-white">
+              Balance: {balance !== null ? `${balance.toFixed(2)} SOL` : "Loading..."}
+            </span>
+          )}
         </div>
       </div>
       <div className="container mx-auto flex justify-between items-center sm:hidden mt-2">
