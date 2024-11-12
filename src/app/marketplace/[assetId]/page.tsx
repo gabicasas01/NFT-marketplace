@@ -29,6 +29,7 @@ import {
   getAssociatedTokenAddress,
   TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
+import TokenSelectModal, { TOKENS } from "@/app/components/SelectTokenModal";
 
 interface Product {
   name: string;
@@ -48,6 +49,7 @@ const ProductPage: React.FC = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [mainImage, setMainImage] = useState<string | null>(null);
   const [price, setPrice] = useState<number>(0);
+  const [isModalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     if (assetId) {
@@ -142,6 +144,19 @@ const ProductPage: React.FC = () => {
     },
     [publicKey, connection, sendTransaction, price]
   );
+
+  const handleBuyClick = () => {
+    setModalOpen(true);
+  };
+
+  const handleSelectToken = async (token: TOKENS) => {
+    setModalOpen(false);
+    
+    if (token === TOKENS.USDC && product) {
+      await onBuy(product.seller, product.listing);
+    }
+  };
+
   if (!product) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 dark:bg-black p-4">
@@ -203,13 +218,18 @@ const ProductPage: React.FC = () => {
           ) : (
             <Button
               className="w-full h-12 text-xl bg-blue-400 text-white hover:bg-blue-500 mt-6"
-              onClick={() => onBuy(product.seller, product.listing)}
+              onClick={handleBuyClick}
             >
               Buy
             </Button>
           )}
         </div>
       </Card>
+      <TokenSelectModal
+        isOpen={isModalOpen}
+        onClose={() => setModalOpen(false)}
+        onSelectToken={handleSelectToken}
+      />
     </div>
   );
 };
